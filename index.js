@@ -2,7 +2,9 @@ import express from "express";
 import path from "path";  // path use hota h html file ko render krane m
 import mongoose from "mongoose";
 import cookieParser from "cookie-parser";
+import jwt from "jsonwebtoken"
 
+//Connecting MongoDb
 mongoose
     .connect("mongodb://localhost:27017",{
     dbName:"backend",
@@ -13,6 +15,7 @@ mongoose
 const userSchema = new mongoose.Schema({
     name: String,
     email: String,
+    password: String,
 });
 const User = mongoose.model("User",userSchema);
 
@@ -33,10 +36,14 @@ const User = mongoose.model("User",userSchema);
     app.set("view engine", "ejs");
 
 // Authentication ----
-const isAuthenticated = (req,res,next)=>{
+const isAuthenticated = async(req,res,next)=>{
     const {token} = req.cookies;
+
     console.log(req.cookies)
     if (token){
+        const decoded = jwt.verify(token, "aaaaa");
+        console.log(decoded);
+        req.user = await User.findById(decoded._id);
         next();
     }
     else{  
@@ -44,22 +51,62 @@ const isAuthenticated = (req,res,next)=>{
     }
 
 };
-    app.get("/", isAuthenticated,(req,res)=>{  //is func k run krne se phle uper wala func chalega
-        res.render("logout");
+    app.get("/", isAuthenticated,(req,res)=>{  //is func k run krne se phle isAuthentication func chalega
+        console.log(req.user);
+        res.render("logout", { name: req.user.name});
        
         // console.log(req.cookies);
         // console.log(req.cookies.token);
         // const {token} = req.cookies;
 
     });
-
-    app.get("/", (req,res) =>{
-        res.render("login.ejs");   // dont need extention mean index.ejs
+    app.get("/register",(req,res)=>{
+        res.render("register")
+    })
+    app.get('/login',(req,res)=>{
+        res.render("login")
     })
 
-    
-    app.post("/login",(req,res)=>{
-        res.cookie("token","this_is_token_value",{
+
+    app.get("/", (req,res) =>{
+        res.render("login.ejs");                    // dont need extention mean index.ejs
+    })
+
+
+    // post requests ------
+
+    app.post("/login",async(req,res)=>{
+        const {email,password} = req.body;             // form m fields hmne bhre h unhe get kr rha h
+        let user = await User.findOne({ email });
+        if (!user) return res.redirect("/register")
+
+        const isMatch = user.password===password       // db se password match kr rha h jo form m dale h
+        if (!isMatch) return res.render('login',{email,message: "Incorrect Password"});
+
+        const token = jwt.sign({ _id:user._id}, "aaaaa");
+        res.cookie("token",token,{                     // set cookies
+            httpOnly:true,expires:new Date(Date.now()+60*1000)
+        });
+        res.redirect("/");
+    })
+
+    app.post("/register",async(req,res)=>{
+        const {name,email,password} = req.body;
+
+        let user = await User.findOne({email});
+        if (user) {
+            return res.redirect("/login")
+        }
+          user = await User.create({
+            name,
+            email,
+            password,
+        })
+
+        const token = jwt.sign({ _id:user._id}, "aaaaa");
+        // console.log(token);
+
+        res.cookie("token",token,{          // set cookies
             httpOnly:true,expires:new Date(Date.now()+60*1000)
         });
         res.redirect("/");

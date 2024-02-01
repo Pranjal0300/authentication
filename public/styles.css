@@ -45,3 +45,9 @@ button{
     
 }
 
+.error{
+    color:red;
+    font-size: 1rem;
+    text-align: right;
+    margin: 1rem;
+}
